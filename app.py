@@ -2,49 +2,44 @@ import streamlit as st
 import fitz  # PyMuPDF
 import re
 import pandas as pd
-from io import BytesIO
 
-def extract_mileage_data_from_pdf(file):
+def extract_mileage_data(file):
     doc = fitz.open(stream=file.read(), filetype="pdf")
-    text = ""
+    full_text = ""
     for page in doc:
-        text += page.get_text()
+        full_text += page.get_text()
 
-    # Find all name blocks and mileage values
-    name_blocks = re.findall(
-        r"((Mr|Mrs|Miss|Ms)\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+)+).*?TOTAL.*?£[\\d,]+\\.\\d{2}\\s+£[\\d,]+\\.\\d{2}\\s+£([\\d,]+\\.\\d{2})",
-        text, re.DOTALL
-    )
+    sections = re.split(r"Timesheet\\s+number:\\s*\\d+", full_text)
+    records = []
 
-    data = []
-    for block in name_blocks:
-        name = block[0].strip()
-        mileage = float(block[2].replace(',', ''))
-        if mileage > 0:
-            data.append({
-                "Name": name,
-                "Mileage": mileage,
-                "Source File": file.name
-            })
+    name_pattern = re.compile(r"(Mr|Mrs|Miss|Ms)\\s+[A-Z][a-z]+\\s+[A-Z][a-z]+(?:\\s+[A-Z][a-z]+)?")
+    mileage_pattern = re.compile(r"MILEAGE\\s+TOTAL.*?£[\\d,]+\\.\\d{2}\\s+£[\\d,]+\\.\\d{2}\\s+£([\\d,]+\\.\\d{2})", re.DOTALL)
 
-    return data
+    for section in sections:
+        name_match = name_pattern.search(section)
+        mileage_match = mileage_pattern.search(section)
+        if name_match and mileage_match:
+            name = name_match.group().strip()
+            mileage = float(mileage_match.group(1).replace(",", ""))
+            if mileage > 0:
+                records.append({ "Name": name, "Mileage": mileage })
 
-# Streamlit UI
+    return pd.DataFrame(records)
+
 st.title("Mileage Extractor from PDF Timesheets")
 
 uploaded_files = st.file_uploader("Upload one or more PDF files", type="pdf", accept_multiple_files=True)
 
 if uploaded_files:
-    all_data = []
+    all_data = pd.DataFrame()
     for file in uploaded_files:
-        extracted = extract_mileage_data_from_pdf(file)
-        all_data.extend(extracted)
+        df = extract_mileage_data(file)
+        df["Source File"] = file.name
+        all_data = pd.concat([all_data, df], ignore_index=True)
 
-    if all_data:
-        df = pd.DataFrame(all_data)
-        st.dataframe(df)
-
-        csv = df.to_csv(index=False).encode('utf-8')
+    if not all_data.empty:
+        st.dataframe(all_data)
+        csv = all_data.to_csv(index=False).encode("utf-8")
         st.download_button("Download CSV", csv, "mileage_summary.csv", "text/csv")
     else:
         st.info("No mileage data found in the uploaded PDFs.")
