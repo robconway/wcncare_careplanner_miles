@@ -14,41 +14,24 @@ if uploaded_file:
     for page in pdf_doc:
         text += page.get_text()
 
-    lines = text.splitlines()
+    # Split into sections per person
+    sections = re.split(r"(?=Payroll\s+ID:\s*\d+)", text)
     results = []
-    current_name = None
-    i = 0
 
-    while i < len(lines):
-        line = lines[i]
+    for section in sections:
+        # Extract name
+        name_match = re.search(r"Payroll\s+ID:\s*\d+\s+(Mr|Mrs|Miss|Ms)\s+[A-Za-z]+\s+[A-Za-z]+", section)
+        name = name_match.group(0).split("Payroll ID:")[1].strip() if name_match else "Unknown"
 
-        # Detect name after Payroll ID
-        if "Payroll ID" in line:
-            for j in range(i + 1, min(i + 6, len(lines))):
-                if re.match(r"^(Mr|Mrs|Miss|Ms)\b", lines[j]):
-                    current_name = lines[j].strip()
-                    break
-
-        # Detect TRAVEL MILEAGE followed by TOTAL
-        if "TRAVEL MILEAGE" in line.upper():
-            for j in range(i + 1, min(i + 6, len(lines))):
-                if "TOTAL" in lines[j].upper():
-                    monetary_values = []
-                    for k in range(j + 1, min(j + 10, len(lines))):
-                        money_match = re.findall(r"£\s?[\d,]+\.\d{2}", lines[k])
-                        if money_match:
-                            monetary_values.extend(money_match)
-                        if len(monetary_values) >= 2:
-                            break
-                    if len(monetary_values) >= 2 and current_name:
-                        mileage_str = monetary_values[1].replace("£", "").replace(",", "").strip()
-                        try:
-                            mileage = float(mileage_str)
-                        except ValueError:
-                            mileage = 0.0
-                        results.append({"name": current_name, "mileage": mileage})
-                    break
-        i += 1
+        # Extract travel mileage total
+        mileage_match = re.search(r"TRAVEL\s+MILEAGE.*?£\s?([\d,]+\.\d{2})", section, re.IGNORECASE)
+        if mileage_match:
+            mileage_str = mileage_match.group(1).replace(",", "")
+            try:
+                mileage = float(mileage_str)
+            except ValueError:
+                mileage = 0.0
+            results.append({"name": name, "mileage": mileage})
 
     st.subheader("Extracted Travel Mileage")
     if results:
