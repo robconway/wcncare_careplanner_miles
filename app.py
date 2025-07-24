@@ -10,19 +10,24 @@ def extract_mileage_data(file):
         full_text += page.get_text()
 
     sections = re.split(r"Timesheet\\s+number:\\s*\\d+", full_text)
-    records = []
-
     name_pattern = re.compile(r"(Mr|Mrs|Miss|Ms)\\s+[A-Z][a-z]+\\s+[A-Z][a-z]+(?:\\s+[A-Z][a-z]+)?")
-    mileage_pattern = re.compile(r"MILEAGE\\s+TOTAL.*?£[\\d,]+\\.\\d{2}\\s+£[\\d,]+\\.\\d{2}\\s+£([\\d,]+\\.\\d{2})", re.DOTALL)
+    mileage_pattern = re.compile(r"TRAVEL\\s+MILEAGE\\s+TOTAL.*?£[\\d,]+\\.\\d{2}\\s+£[\\d,]+\\.\\d{2}\\s+£([\\d,]+\\.\\d{2})", re.DOTALL)
+    alt_mileage_pattern = re.compile(r"TRAVEL\\s+MILEAGE\\s+.*?£([\\d,]+\\.\\d{2})", re.DOTALL)
 
+    records = []
     for section in sections:
         name_match = name_pattern.search(section)
         mileage_match = mileage_pattern.search(section)
+        if not mileage_match:
+            mileage_match = alt_mileage_pattern.search(section)
         if name_match and mileage_match:
-            name = name_match.group().strip()
+            name = name_match.group().strip().replace('\\n', ' ')
             mileage = float(mileage_match.group(1).replace(",", ""))
             if mileage > 0:
-                records.append({ "Name": name, "Mileage": mileage })
+                records.append({
+                    "Name": name,
+                    "Mileage": mileage
+                })
 
     return pd.DataFrame(records)
 
@@ -30,16 +35,4 @@ st.title("Mileage Extractor from PDF Timesheets")
 
 uploaded_files = st.file_uploader("Upload one or more PDF files", type="pdf", accept_multiple_files=True)
 
-if uploaded_files:
-    all_data = pd.DataFrame()
-    for file in uploaded_files:
-        df = extract_mileage_data(file)
-        df["Source File"] = file.name
-        all_data = pd.concat([all_data, df], ignore_index=True)
-
-    if not all_data.empty:
-        st.dataframe(all_data)
-        csv = all_data.to_csv(index=False).encode("utf-8")
-        st.download_button("Download CSV", csv, "mileage_summary.csv", "text/csv")
-    else:
-        st.info("No mileage data found in the uploaded PDFs.")
+if
