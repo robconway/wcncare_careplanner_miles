@@ -22,12 +22,14 @@ if uploaded_file:
     while i < len(lines):
         line = lines[i]
 
+        # Detect name after Payroll ID
         if "Payroll ID" in line:
             for j in range(i + 1, min(i + 6, len(lines))):
                 if re.match(r"^(Mr|Mrs|Miss|Ms)\b", lines[j]):
                     current_name = lines[j].strip()
                     break
 
+        # Detect TRAVEL MILEAGE followed by TOTAL
         if "TRAVEL MILEAGE" in line.upper():
             for j in range(i + 1, min(i + 6, len(lines))):
                 if "TOTAL" in lines[j].upper():
@@ -36,10 +38,10 @@ if uploaded_file:
                         money_match = re.findall(r"£\s?[\d,]+\.\d{2}", lines[k])
                         if money_match:
                             monetary_values.extend(money_match)
-                        if len(monetary_values) >= 3:
+                        if len(monetary_values) >= 2:
                             break
-                    if len(monetary_values) >= 3 and current_name:
-                        mileage_str = monetary_values[2].replace("£", "").replace(",", "").strip()
+                    if len(monetary_values) >= 2 and current_name:
+                        mileage_str = monetary_values[1].replace("£", "").replace(",", "").strip()
                         try:
                             mileage = float(mileage_str)
                         except ValueError:
