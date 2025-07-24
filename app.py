@@ -35,4 +35,16 @@ st.title("Mileage Extractor from PDF Timesheets")
 
 uploaded_files = st.file_uploader("Upload one or more PDF files", type="pdf", accept_multiple_files=True)
 
-if
+if uploaded_files:
+    all_data = pd.DataFrame()
+    for file in uploaded_files:
+        df = extract_mileage_data(file)
+        df["Source File"] = file.name
+        all_data = pd.concat([all_data, df], ignore_index=True)
+
+    if not all_data.empty:
+        st.dataframe(all_data)
+        csv = all_data.to_csv(index=False).encode("utf-8")
+        st.download_button("Download CSV", csv, "mileage_summary.csv", "text/csv")
+    else:
+        st.warning("No mileage data found in the uploaded PDFs.")
